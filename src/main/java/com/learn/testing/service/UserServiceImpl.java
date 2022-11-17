@@ -7,10 +7,13 @@ import java.util.UUID;
 
 public class UserServiceImpl implements UserService {
 
-    UserRepo userRepo;
+    private UserRepo userRepo;
 
-    public UserServiceImpl(UserRepo  userDatabase) {
+    private EmailVerificationService emailService;
+
+    public UserServiceImpl(UserRepo userDatabase, EmailVerificationService emailVerificationService) {
         this.userRepo = userDatabase;
+        this.emailService = emailVerificationService;
     }
 
     @Override
@@ -23,6 +26,12 @@ public class UserServiceImpl implements UserService {
 
         if (!isUserCreated) {
             throw new UserServiceException("User already exists and hence not created");
+        }
+
+        try {
+            emailService.scheduleEmailConfirmation(user);
+        } catch (RuntimeException ex) {
+            throw new UserServiceException(ex.getMessage());
         }
 
         return userId;

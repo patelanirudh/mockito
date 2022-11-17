@@ -25,6 +25,9 @@ class UserServiceImplTest {
     @Mock
     UserRepo userDatabase;
 
+    @Mock
+    EmailVerificationServiceImpl emailService;
+
     // This state is sustained b/w test method executions. Since, only one TestClass instance is created as above.
     private String createdUserId;
 
@@ -43,7 +46,7 @@ class UserServiceImplTest {
     @Order(1)
     @DisplayName("CreateUser")
     @Test
-    void testCreateUser_2UsersCreated_ShouldBeSavedToDB() {
+    void testCreateUser_1UserCreated_ShouldBeSavedToDB() {
         System.out.println("Executing @Test CreateUser");
 
         // Arrange/Given
@@ -63,10 +66,105 @@ class UserServiceImplTest {
         assertEquals(expectedUserCount, actualUsersCount, "Mismatch between expected and actual users count");
 
         // times(1) can be omitted since it is the default value in verification mode
-        verify(userDatabase,times(1)).saveUser(Mockito.anyString(), Mockito.any(User.class));
+        verify(userDatabase, times(1)).saveUser(Mockito.anyString(), Mockito.any(User.class));
     }
 
     @Order(2)
+    @DisplayName("CreateUserFails")
+    @Test
+    void testCreateUser_NoUserCreatedRepoReturnsFalse_ShouldThrowException() {
+        System.out.println("Executing @Test CreateUserFails");
+
+        // Arrange/Given
+        User user1 = new User("Anirudh Patel", 35);
+        int expectedUserCount = 0;
+        // If you mock thenTrow(RuntimeException), then add try/catch in createUser method
+        when(userDatabase.saveUser(Mockito.anyString(), Mockito.any(User.class))).thenReturn(false);
+        when(userDatabase.getAllUsersCount()).thenReturn(0);
+
+        // Act/When
+        assertThrows(UserServiceException.class, () -> {
+            createdUserId = userServiceImpl.createUser(user1);
+        }, "Should have thrown UserServiceException instead");
+
+        // Assert/Then
+        int actualUsersCount = userServiceImpl.getAllUsersCount();
+        System.out.println("ActualUsersCount : " + actualUsersCount);
+
+        assertEquals(expectedUserCount, actualUsersCount, "Mismatch between expected and actual users count");
+
+        // times(1) can be omitted since it is the default value in verification mode
+        verify(userDatabase, times(1)).saveUser(Mockito.anyString(), Mockito.any(User.class));
+    }
+
+    @Order(3)
+    @DisplayName("CreateUserHandleEmailNotificationException")
+    @Test
+    void testCreateUser_EmailNotificationExceptionThrown_ShouldThrowException() {
+        System.out.println("Executing @Test CreateUserHandleEmailNotificationException");
+
+        // Arrange/Given
+        User user1 = new User("Anirudh Patel", 35);
+        int expectedUserCount = 0;
+        // If you mock thenTrow(RuntimeException), then add try/catch in createUser method
+        when(userDatabase.saveUser(Mockito.anyString(), Mockito.any(User.class))).thenReturn(true);
+
+        // when does not work for void methods throwing exceptions
+        // when(emailService.scheduleEmailConfirmation(any(User.class))).thenThrow();
+
+        // this will mock exception throw in EmailNotificationService void method
+        doThrow(EmailNotificationServiceException.class)
+                .when(emailService).scheduleEmailConfirmation(any(User.class));
+        // Another variation is doNothing when you want mock methods to do nothing
+        // doNothing().when(emailService).scheduleEmailConfirmation(any(User.class));
+
+        when(userDatabase.getAllUsersCount()).thenReturn(0);
+
+        // Act/Assert/When
+        assertThrows(UserServiceException.class, () -> {
+            createdUserId = userServiceImpl.createUser(user1);
+        }, "Should have thrown UserServiceException instead");
+
+        // Assert/Then
+        int actualUsersCount = userServiceImpl.getAllUsersCount();
+        System.out.println("ActualUsersCount : " + actualUsersCount);
+
+        assertEquals(expectedUserCount, actualUsersCount, "Mismatch between expected and actual users count");
+
+        // times(1) can be omitted since it is the default value in verification mode
+        verify(userDatabase, times(1)).saveUser(Mockito.anyString(), Mockito.any(User.class));
+        verify(emailService, times(1)).scheduleEmailConfirmation(any(User.class));
+    }
+
+    @Order(4)
+    @DisplayName("CreateUserWithEmailConfirmation")
+    @Test
+    void testCreateUser_WithEmailConfirmation_ShouldCallRealMethod() {
+        // Arrange
+        int expectedUserCount = 0;
+        User user1 = new User("Anirudh Patel", 35);
+
+        when(userDatabase.saveUser(anyString(), any(User.class))).thenReturn(true);
+        doCallRealMethod()
+                .when(emailService)
+                .scheduleEmailConfirmation(any(User.class));
+
+        // Act/When
+        createdUserId = userServiceImpl.createUser(user1);
+
+        // Assert
+        int actualUsersCount = userServiceImpl.getAllUsersCount();
+        System.out.println("ActualUsersCount : " + actualUsersCount);
+
+        assertNotNull(createdUserId, "createdUserId should not be null");
+        assertEquals(expectedUserCount, actualUsersCount, "Mismatch between expected and actual users count");
+
+        verify(userDatabase, times(1)).saveUser(anyString(), any(User.class));
+        verify(emailService, times(1)).scheduleEmailConfirmation(any(User.class));
+    }
+
+
+    @Order(5)
     @DisplayName("GetUserDetails")
     @Test
     @Disabled
@@ -82,7 +180,7 @@ class UserServiceImplTest {
     }
 
 
-    @Order(3)
+    @Order(6)
     @DisplayName("UpdateUser")
     @Test
     @Disabled
@@ -105,7 +203,7 @@ class UserServiceImplTest {
         assertEquals(expectedUserAge, updatedUserAge, "Mismatch between expected and updatedUserAge");
     }
 
-    @Order(4)
+    @Order(7)
     @DisplayName("UpdateUserWithEmptyUserId")
     @Test
     @Disabled
@@ -124,7 +222,7 @@ class UserServiceImplTest {
         assertEquals(expectedExceptionMessage, illegalArgumentException.getMessage(), "Exception message should have matched");
     }
 
-    @Order(5)
+    @Order(8)
     @DisplayName("UpdateUserNotFound")
     @Test
     @Disabled
@@ -144,7 +242,7 @@ class UserServiceImplTest {
         assertEquals(expectedExceptionMessage, illegalArgumentException.getMessage(), "Exception message should have matched");
     }
 
-    @Order(6)
+    @Order(9)
     @DisplayName("RemoveUser")
     @Test
     @Disabled
